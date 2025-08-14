@@ -20,8 +20,10 @@ interface StoryCardProps {
 export function StoryCard({ story }: StoryCardProps) {
   const [isUpvoted, setIsUpvoted] = useState(false);
   const [currentScore, setCurrentScore] = useState(story.score);
+  const [imageError, setImageError] = useState(false);
 
-  const handleUpvote = () => {
+  const handleUpvote = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click when upvoting
     if (isUpvoted) {
       setCurrentScore(currentScore - 1);
     } else {
@@ -56,20 +58,28 @@ export function StoryCard({ story }: StoryCardProps) {
     );
   };
 
-  const handleTitleClick = () => {
+  const handleCardClick = () => {
     if (story.url) {
       window.open(story.url, '_blank', 'noopener,noreferrer');
     }
   };
 
+  const getFallbackImage = () => {
+    return 'https://images.pexels.com/photos/1181263/pexels-photo-1181263.jpeg?auto=compress&cs=tinysrgb&w=400';
+  };
+
   return (
-    <article className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-md dark:hover:shadow-lg transition-all duration-300 group">
+    <article 
+      className={`bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-md dark:hover:shadow-lg transition-all duration-300 group ${story.url ? 'cursor-pointer' : ''}`}
+      onClick={handleCardClick}
+    >
       <div className="aspect-video overflow-hidden bg-gray-100">
         <img
-          src={story.thumbnail}
+          src={imageError ? getFallbackImage() : story.thumbnail}
           alt={story.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           loading="lazy"
+          onError={() => setImageError(true)}
         />
       </div>
       
@@ -91,10 +101,7 @@ export function StoryCard({ story }: StoryCardProps) {
           </button>
         </div>
 
-        <h2 
-          className={`text-lg font-semibold text-gray-900 dark:text-white mb-2 leading-tight ${story.url ? 'cursor-pointer hover:text-orange-600 dark:hover:text-orange-400 transition-colors duration-200' : ''}`}
-          onClick={handleTitleClick}
-        >
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 leading-tight">
           {story.title}
         </h2>
 
@@ -103,19 +110,21 @@ export function StoryCard({ story }: StoryCardProps) {
         </p>
 
         <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-1">
-              <User size={14} />
-              <span>{story.author}</span>
-            </div>
-            <div className="flex items-center space-x-1">
-              <Clock size={14} />
-              <span>{formatTimeAgo(story.time)}</span>
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-1">
+                <User size={14} />
+                <span>{story.author}</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <Clock size={14} />
+                <span>{formatTimeAgo(story.time)}</span>
+              </div>
             </div>
             {story.domain && (
-              <div className="flex items-center space-x-1">
-                <ExternalLink size={14} />
-                <span>{story.domain}</span>
+              <div className="flex items-center space-x-1 text-xs">
+                <ExternalLink size={12} />
+                <span className="truncate">{story.domain}</span>
               </div>
             )}
           </div>

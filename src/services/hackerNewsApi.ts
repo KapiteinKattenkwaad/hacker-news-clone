@@ -68,6 +68,34 @@ function extractDomain(url: string): string {
   }
 }
 
+async function extractImageFromUrl(url: string): Promise<string | null> {
+  try {
+    // For now, we'll use a simple approach to get images
+    // In a production app, you might want to use a service like:
+    // - Open Graph image extraction
+    // - Screenshot services
+    // - Content parsing APIs
+    
+    // Check if URL contains common image hosting domains
+    const imageHosts = ['imgur.com', 'github.com', 'medium.com', 'dev.to'];
+    const domain = new URL(url).hostname.replace('www.', '');
+    
+    if (imageHosts.some(host => domain.includes(host))) {
+      // For GitHub, we can try to get repository social image
+      if (domain.includes('github.com')) {
+        const pathParts = new URL(url).pathname.split('/').filter(Boolean);
+        if (pathParts.length >= 2) {
+          return `https://opengraph.githubassets.com/1/${pathParts[0]}/${pathParts[1]}`;
+        }
+      }
+    }
+    
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function generateThumbnail(title: string, category: string): string {
   // Generate deterministic thumbnails based on story content
   const thumbnails = {
@@ -126,6 +154,19 @@ function generateThumbnail(title: string, category: string): string {
   return categoryThumbnails[Math.abs(hash) % categoryThumbnails.length];
 }
 
+async function getThumbnailForStory(item: HNItem, category: string): Promise<string> {
+  // First try to extract image from URL if available
+  if (item.url) {
+    const extractedImage = await extractImageFromUrl(item.url);
+    if (extractedImage) {
+      return extractedImage;
+    }
+  }
+  
+  // Fall back to generated thumbnail
+  return generateThumbnail(item.title || '', category);
+}
+
 function formatTimeAgo(timestamp: number): string {
   const now = Date.now() / 1000;
   const diff = now - timestamp;
@@ -149,9 +190,10 @@ function determineCategory(item: HNItem): 'top' | 'new' | 'best' | 'ask' | 'show
   return 'top';
 }
 
-export function transformHNItemToStory(item: HNItem, category: CategoryType = 'top'): Story {
+export async function transformHNItemToStory(item: HNItem, category: CategoryType = 'top'): Promise<Story> {
   const storyCategory = category === 'all' ? determineCategory(item) : category;
   const domain = item.url ? extractDomain(item.url) : undefined;
+  const thumbnail = await getThumbnailForStory(item, storyCategory);
   
   // Create description from text or generate from title
   let description = '';
@@ -176,7 +218,7 @@ export function transformHNItemToStory(item: HNItem, category: CategoryType = 't
     title: item.title || 'Untitled',
     url: item.url,
     description,
-    thumbnail: generateThumbnail(item.title || '', storyCategory),
+    thumbnail,
     score: item.score || 0,
     author: item.by || 'unknown',
     time: item.time || 0,
@@ -204,9 +246,10 @@ export async function getStories(category: CategoryType, limit: number = 30): Pr
       
       const batchStories = batchItems
         .filter((item): item is HNItem => item !== null && !item.deleted && !item.dead)
-        .map(item => transformHNItemToStory(item, category));
+        .map(async item => await transformHNItemToStory(item, category));
       
-      stories.push(...batchStories);
+      const resolvedBatchStories = await Promise.all(batchStories);
+      stories.push(...resolvedBatchStories);
     }
     
     return stories;
